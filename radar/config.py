@@ -57,6 +57,11 @@ class Config:
                 "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
             )
         )
+        # opencode-go 的网关要求带一个会话 ID 头，否则 400 MissingSessionID。
+        # 普通的 OpenAI 兼容接口不需要，留空即可。
+        self.llm_session_header = str(llm.get("session_header", "x-opencode-session"))
+        # 推理模型的思考过程也算进 max_tokens，给小了会返回空内容
+        self.llm_max_tokens = int(llm.get("max_tokens", 4000))
 
         r = raw.get("render", {})
         self.title = str(r.get("title", "泌尿外科文献雷达"))

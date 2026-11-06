@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from . import clock
 from .config import Config
-from .digest import run as run_digest
+from .digest import llm_headers, run as run_digest
 from .net import Http
 from .render import write_page
 from .score import score_paper
@@ -167,32 +167,34 @@ def cmd_doctor(args) -> int:
 
     _log(f"· 网关 {cfg.llm_base_url}")
     _log(f"· 模型 {cfg.llm_model}")
-    http = Http(cfg.llm_user_agent, timeout=30)
-    headers = {"Authorization": f"Bearer {key}", "User-Agent": cfg.llm_user_agent}
+    http = Http(cfg.llm_user_agent, timeout=60)
+    headers = llm_headers(cfg, key)
 
     try:
         data = http.get_json(cfg.llm_base_url + "/models", headers=headers)
+        ids = [m.get("id") for m in (data or {}).get("data", []) if isinstance(m, dict)]
+        _log(f"✓ 网关可达，返回 {len(ids)} 个模型")
+        if ids and cfg.llm_model not in ids:
+            near = [i for i in ids if "deepseek" in (i or "").lower()]
+            _log(f"! 列表里没看到 {cfg.llm_model}，同系列有：{near}")
+        elif ids:
+            _log(f"✓ {cfg.llm_model} 在列表里")
     except Exception as exc:
-        _log(f"✗ 连不上网关：{exc}")
-        return 1
-
-    ids = [m.get("id") for m in (data or {}).get("data", []) if isinstance(m, dict)]
-    _log(f"✓ 网关可达，返回 {len(ids)} 个模型")
-    if cfg.llm_model not in ids:
-        near = [i for i in ids if "deepseek" in (i or "").lower()]
-        _log(f"✗ 列表里没有 {cfg.llm_model}，相近的有：{near}")
-        return 1
-    _log(f"✓ {cfg.llm_model} 在列表里")
+        # 有些网关不实现 /models，直接测生成更有意义
+        _log(f"· /models 不可用（{str(exc)[:120]}），直接测生成")
 
     body = {
         "model": cfg.llm_model,
         "messages": [{"role": "user", "content": "回复两个字：正常"}],
-        "max_tokens": 8,
+        "max_tokens": 16,
     }
     try:
         resp = http.post_json(cfg.llm_base_url + "/chat/completions", body, headers)
         text = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+        usage = resp.get("usage") or {}
         _log(f"✓ 生成正常：{str(text).strip()[:40]}")
+        if usage:
+            _log(f"· 用量 {usage}")
         return 0
     except Exception as exc:
         _log(f"✗ 生成失败：{exc}")

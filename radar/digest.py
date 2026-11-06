@@ -8,10 +8,21 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 
 from .config import Config
 from .net import Http
 from .store import Store
+
+# 网关按会话做路由和缓存，整个进程用一个就够了
+_SESSION_ID = uuid.uuid4().hex
+
+
+def llm_headers(cfg: Config, api_key: str) -> dict:
+    headers = {"Authorization": f"Bearer {api_key}", "User-Agent": cfg.llm_user_agent}
+    if cfg.llm_session_header:
+        headers[cfg.llm_session_header] = _SESSION_ID
+    return headers
 
 SYSTEM = (
     "你是泌尿外科主治医师，每天给科室同事写一份文献速递。"
@@ -86,7 +97,7 @@ def parse_response(text: str, expected: int) -> dict[int, dict]:
 
 def _call(http: Http, cfg: Config, api_key: str, prompt: str) -> str:
     url = f"{cfg.llm_base_url}/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "User-Agent": cfg.llm_user_agent}
+    headers = llm_headers(cfg, api_key)
     base = {
         "model": cfg.llm_model,
         "messages": [
@@ -94,7 +105,7 @@ def _call(http: Http, cfg: Config, api_key: str, prompt: str) -> str:
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.2,
-        "max_tokens": 2400,
+        "max_tokens": cfg.llm_max_tokens,
     }
     try:
         resp = http.post_json(url, {**base, "response_format": {"type": "json_object"}}, headers)
