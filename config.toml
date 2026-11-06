@@ -1,0 +1,233 @@
+# =====================================================================
+# 泌尿外科文献雷达 · 配置文件
+# 改这个文件就够了，不需要改代码。
+# =====================================================================
+
+[general]
+# 每次抓取回溯多少天（PubMed 的 edat 窗口）
+days = 10
+# 页面最多展示多少篇（按分数排序后的上限）
+limit = 90
+# Crossref 每本期刊最多取多少条（10 天窗口 40 条够用，期刊密集期可以调大）
+crossref_rows = 60
+# PubMed 一次最多取多少条
+pubmed_retmax = 600
+# 库里保留多少天，超过就删（控制 db 体积）
+prune_days = 365
+# Crossref 礼貌池要求留邮箱，建议改成你自己的
+mailto = "your@email.com"
+user_agent = "uro-radar/0.1 (mailto:your@email.com)"
+# 时区只影响页面上的「今天」显示
+timezone = "Asia/Shanghai"
+
+[scoring]
+# 期刊层级的权重：score += tier * tier_weight
+# tier 5 的社论不能压过 tier 3 的 RCT，所以这里不能给太高
+tier_weight = 10
+# 命中一个兴趣词的加分
+interest_weight = 2
+# 兴趣词总共最多加多少分（防止关键词刷分）
+interest_cap = 10
+# 近 N 天内发表的加分
+fresh_days = 3
+fresh_bonus = 4
+
+[llm]
+# 是否生成中文速读。关掉就只显示英文原摘要。
+enabled = true
+# 任意 OpenAI 兼容接口都行
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+# 从环境变量读 key，别写在这个文件里
+api_key_env = "LLM_API_KEY"
+# 每次请求塞几篇，太大容易超时/被截断
+batch = 6
+# 每天最多给多少篇生成中文速读（按分数从高到低），控制成本
+max_per_run = 30
+
+[render]
+title = "泌尿外科文献雷达"
+subtitle = "Crossref × PubMed · 每日高分文献"
+# 顶部「本周必读」展示几篇
+top_n = 5
+
+# =====================================================================
+# 兴趣词：命中标题/摘要就加分。按你现在的方向调。
+# =====================================================================
+interests = [
+  "SEER", "MIMIC", "NHANES", "NIS", "nationwide", "population-based",
+  "nomogram", "machine learning", "deep learning", "radiomics",
+  "randomized", "trial", "non-inferiority",
+  "urolithiasis", "stone", "ureteroscopy", "PCNL", "retrograde intrarenal",
+  "BPH", "LUTS", "enucleation", "HoLEP", "aquablation",
+  "urosepsis", "sepsis", "urinary tract infection",
+  "bladder cancer", "BCG", "cystectomy", "neoadjuvant",
+  "prostate cancer", "PSMA", "radical prostatectomy", "focal therapy",
+  "kidney cancer", "partial nephrectomy", "renal mass",
+  "testicular", "penile", "urethral",
+  "incontinence", "overactive bladder", "neurogenic",
+  "vasectomy", "infertility", "erectile",
+  "telehealth", "ambulatory", "day surgery", "ERAS",
+]
+
+# =====================================================================
+# 期刊池：tier 5=旗舰 4=一线 3=主流 2=补充
+# issn 用于 Crossref（哪个能通就用哪个），abbr 必须是 PubMed 的 NLM 缩写
+# 加了新期刊后先跑 `python main.py check` 看两边都能不能抓到
+# =====================================================================
+
+[[journals]]
+name = "European Urology"
+abbr = "Eur Urol"
+issn = "0302-2838"
+issn_alt = "1873-7560"
+tier = 5
+group = "综合"
+
+[[journals]]
+name = "Nature Reviews Urology"
+abbr = "Nat Rev Urol"
+issn = "1759-4812"
+issn_alt = "1759-4820"
+tier = 5
+group = "综合"
+
+[[journals]]
+name = "European Urology Oncology"
+abbr = "Eur Urol Oncol"
+issn = "2588-9311"
+tier = 4
+group = "肿瘤"
+
+[[journals]]
+name = "European Urology Focus"
+abbr = "Eur Urol Focus"
+issn = "2405-4569"
+tier = 4
+group = "综合"
+
+[[journals]]
+name = "The Journal of Urology"
+abbr = "J Urol"
+issn = "0022-5347"
+issn_alt = "1527-3792"
+tier = 4
+group = "综合"
+
+[[journals]]
+name = "BJU International"
+abbr = "BJU Int"
+issn = "1464-4096"
+issn_alt = "1464-410X"
+tier = 4
+group = "综合"
+
+[[journals]]
+name = "Urology"
+abbr = "Urology"
+issn = "0090-4295"
+issn_alt = "1527-9995"
+tier = 3
+group = "综合"
+
+[[journals]]
+name = "World Journal of Urology"
+abbr = "World J Urol"
+issn = "0724-4983"
+issn_alt = "1433-8726"
+tier = 3
+group = "综合"
+
+[[journals]]
+name = "Journal of Endourology"
+abbr = "J Endourol"
+issn = "0892-7790"
+issn_alt = "1557-900X"
+tier = 3
+group = "结石腔镜"
+
+[[journals]]
+name = "Urolithiasis"
+abbr = "Urolithiasis"
+issn = "2194-7228"
+issn_alt = "2194-7236"
+tier = 2
+group = "结石腔镜"
+
+[[journals]]
+name = "Prostate Cancer and Prostatic Diseases"
+abbr = "Prostate Cancer Prostatic Dis"
+issn = "1365-7852"
+issn_alt = "1476-5608"
+tier = 3
+group = "肿瘤"
+
+[[journals]]
+name = "Urologic Oncology"
+abbr = "Urol Oncol"
+issn = "1078-1439"
+tier = 3
+group = "肿瘤"
+
+[[journals]]
+name = "Clinical Genitourinary Cancer"
+abbr = "Clin Genitourin Cancer"
+issn = "1558-7673"
+tier = 3
+group = "肿瘤"
+
+[[journals]]
+name = "Neurourology and Urodynamics"
+abbr = "Neurourol Urodyn"
+issn = "0733-2467"
+issn_alt = "1520-6777"
+tier = 3
+group = "尿控"
+
+[[journals]]
+name = "The Journal of Sexual Medicine"
+abbr = "J Sex Med"
+issn = "1743-6095"
+issn_alt = "1743-6109"
+tier = 3
+group = "男科"
+
+[[journals]]
+name = "Andrology"
+abbr = "Andrology"
+issn = "2047-2919"
+issn_alt = "2047-2927"
+tier = 3
+group = "男科"
+
+[[journals]]
+name = "Asian Journal of Andrology"
+abbr = "Asian J Androl"
+issn = "1008-682X"
+issn_alt = "1745-7262"
+tier = 2
+group = "男科"
+
+[[journals]]
+name = "International Journal of Urology"
+abbr = "Int J Urol"
+issn = "0919-8172"
+issn_alt = "1442-2042"
+tier = 2
+group = "综合"
+
+[[journals]]
+name = "Minerva Urology and Nephrology"
+abbr = "Minerva Urol Nephrol"
+issn = "2724-6051"
+issn_alt = "2724-6442"
+tier = 2
+group = "综合"
+
+[[journals]]
+name = "Current Opinion in Urology"
+abbr = "Curr Opin Urol"
+issn = "0963-0643"
+issn_alt = "1473-6586"
+tier = 2
+group = "综述"

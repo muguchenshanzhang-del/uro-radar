@@ -1,0 +1,61 @@
+name: 每日文献雷达
+
+on:
+  schedule:
+    # UTC 23:30 = 北京时间 07:30。GitHub 的 cron 会延迟几分钟到半小时，正常。
+    - cron: "30 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 这个项目零依赖，不需要 pip install
+      - name: 抓取 · 打分 · 中文速读 · 生成页面
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: python main.py build --days 10
+
+      # 状态文件要提交回去：去重记录和已生成的中文速读都在里面，
+      # 不提交的话明天会把同样的文献再推一遍、再花一次钱。
+      # （摘要原文在本地 radar.db 里，不进仓库）
+      - name: 提交状态
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: radar $(date -u +%F)"
+            git push
+          else
+            echo "状态没有变化"
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
