@@ -6,8 +6,9 @@ import argparse
 import json
 import sys
 import time
-from datetime import date, timedelta
+from datetime import timedelta
 
+from . import clock
 from .config import Config
 from .digest import run as run_digest
 from .net import Http
@@ -47,6 +48,7 @@ def _row(p: Paper, score: float, reasons: list[str], today: str) -> dict:
 
 def cmd_build(args) -> int:
     cfg = Config(args.config)
+    clock.configure(cfg.timezone)
     if args.days:
         cfg.days = args.days
     if args.limit:
@@ -55,7 +57,7 @@ def cmd_build(args) -> int:
         cfg.llm_enabled = False
 
     http = Http(cfg.user_agent)
-    since = date.today() - timedelta(days=cfg.days)
+    since = clock.today() - timedelta(days=cfg.days)
     _log(f"窗口：{since} 起 {cfg.days} 天 · 期刊 {len(cfg.journals)} 本")
 
     collected: list[Paper] = []
@@ -82,7 +84,7 @@ def cmd_build(args) -> int:
     papers = merge(collected)
     _log(f"\n[3/5] 合并去重后 {len(papers)} 篇")
 
-    today = date.today().isoformat()
+    today = clock.today().isoformat()
     rows = []
     for paper in papers:
         total, why = score_paper(paper, cfg)
@@ -125,8 +127,9 @@ def cmd_build(args) -> int:
 
 def cmd_check(args) -> int:
     cfg = Config(args.config)
+    clock.configure(cfg.timezone)
     http = Http(cfg.user_agent)
-    since = date.today() - timedelta(days=30)
+    since = clock.today() - timedelta(days=30)
     _log(f"{'期刊':<34}{'Crossref':>10}{'PubMed':>9}   tier/group  （近 30 天）")
     _log("-" * 82)
     broken = 0
@@ -157,6 +160,7 @@ def cmd_apply(args) -> int:
     from pathlib import Path
 
     cfg = Config(args.config)
+    clock.configure(cfg.timezone)
     raw = json.loads(Path(args.file).read_text("utf-8"))
     items = raw.get("items") if isinstance(raw, dict) else raw
     if not isinstance(items, list):

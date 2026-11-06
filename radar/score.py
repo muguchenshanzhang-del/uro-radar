@@ -11,8 +11,9 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import datetime
 
+from . import clock
 from .config import Config
 from .sources import Paper
 
@@ -107,7 +108,7 @@ def _days_old(published: str) -> int | None:
         d = datetime.strptime(published, "%Y-%m-%d").date()
     except ValueError:
         return None
-    return (date.today() - d).days
+    return (clock.today() - d).days
 
 
 def score_paper(p: Paper, cfg: Config) -> tuple[float, list[str]]:

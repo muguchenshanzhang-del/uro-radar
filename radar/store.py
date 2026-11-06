@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
+
+from .clock import today as _today
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS papers (
@@ -93,7 +95,7 @@ class Store:
         self.conn.commit()
 
     def recent(self, days: int, limit: int) -> list[sqlite3.Row]:
-        cutoff = (date.today() - timedelta(days=days)).isoformat()
+        cutoff = (_today() - timedelta(days=days)).isoformat()
         cur = self.conn.execute(
             """
             SELECT * FROM papers
@@ -148,7 +150,7 @@ class Store:
         self.conn.commit()
 
     def prune(self, days: int) -> int:
-        cutoff = (date.today() - timedelta(days=days)).isoformat()
+        cutoff = (_today() - timedelta(days=days)).isoformat()
         cur = self.conn.execute(
             "DELETE FROM papers WHERE published != '' AND published < ?", (cutoff,)
         )
@@ -182,7 +184,7 @@ class Store:
         return {"version": 1, "seen": seen, "digests": digests}
 
     def import_state(self, data: dict) -> None:
-        today = date.today().isoformat()
+        today = _today().isoformat()
         stubs = [
             (key, first_seen or today, first_seen or today)
             for key, first_seen in (data.get("seen") or {}).items()
@@ -212,9 +214,7 @@ class Store:
         self.conn.commit()
 
     def stats(self) -> dict:
-        from datetime import date as _date
-
-        today = _date.today().isoformat()
+        today = _today().isoformat()
         total = self.conn.execute("SELECT COUNT(*) FROM papers WHERE title != ''").fetchone()[0]
         with_zh = self.conn.execute(
             "SELECT COUNT(*) FROM papers WHERE zh_title IS NOT NULL AND title != ''"

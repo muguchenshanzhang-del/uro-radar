@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import html
 import json
-from datetime import date, datetime
+from datetime import datetime
 
+from . import clock
 from .config import Config
 from .score import TIER_LABEL, study_type
 
@@ -181,7 +182,7 @@ def _link(item: dict) -> str:
 def _card(item: dict, rank: int) -> str:
     tier = int(item.get("tier") or 0)
     stype = study_type(item.get("pubtypes") or [], item.get("title") or "")
-    is_new = item.get("first_seen") == date.today().isoformat()
+    is_new = item.get("first_seen") == clock.today().isoformat()
     has_zh = bool(item.get("zh_title"))
 
     chips = []
@@ -199,7 +200,7 @@ def _card(item: dict, rank: int) -> str:
     meta_bits = []
     published = item.get("published") or ""
     if published:
-        if published[:4] == str(date.today().year):
+        if published[:4] == str(clock.today().year):
             meta_bits.append(published[5:])
         else:
             meta_bits.append(published)
@@ -282,8 +283,7 @@ def _label(stype: str) -> str:
 
 
 def build_html(items: list[dict], cfg: Config, generated_at: datetime, stats: dict | None = None) -> str:
-    today = date.today()
-    week = today.isoformat()
+    week = clock.today().isoformat()
     stats = stats or {}
     new_count = stats.get("new_today", sum(1 for i in items if i.get("first_seen") == week))
     db_total = stats.get("total", len(items))
@@ -369,7 +369,7 @@ def write_page(
     generated_at: datetime | None = None,
     stats: dict | None = None,
 ) -> str:
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or clock.now()
     cfg.output.parent.mkdir(parents=True, exist_ok=True)
     html_text = build_html(items, cfg, generated_at, stats)
     cfg.output.write_text(html_text, encoding="utf-8")
