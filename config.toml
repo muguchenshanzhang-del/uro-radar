@@ -35,11 +35,14 @@ fresh_bonus = 4
 [llm]
 # 是否生成中文速读。关掉就只显示英文原摘要。
 enabled = true
-# 任意 OpenAI 兼容接口都行
-base_url = "https://api.deepseek.com/v1"
-model = "deepseek-chat"
+# 任意 OpenAI 兼容接口都行。opencode-go 的网关是 zen；换成 DeepSeek 官方就是
+# https://api.deepseek.com/v1 + deepseek-flash
+base_url = "https://opencode.ai/zen/v1"
+model = "deepseek-v4.1-flash"
 # 从环境变量读 key，别写在这个文件里
 api_key_env = "LLM_API_KEY"
+# 这个网关会挡掉 python-urllib 的默认 UA（Cloudflare 1010），必须给浏览器 UA
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
 # 每次请求塞几篇，太大容易超时/被截断
 batch = 6
 # 每天最多给多少篇生成中文速读（按分数从高到低），控制成本

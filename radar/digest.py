@@ -86,7 +86,7 @@ def parse_response(text: str, expected: int) -> dict[int, dict]:
 
 def _call(http: Http, cfg: Config, api_key: str, prompt: str) -> str:
     url = f"{cfg.llm_base_url}/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {"Authorization": f"Bearer {api_key}", "User-Agent": cfg.llm_user_agent}
     base = {
         "model": cfg.llm_model,
         "messages": [
@@ -128,7 +128,13 @@ def run(store: Store, cfg: Config, http: Http, rows: list, log=print) -> int:
             text = _call(http, cfg, api_key, prompt)
             parsed = parse_response(text, len(chunk))
         except Exception as exc:  # 网络/额度/解析都可能出问题，别让整条流水线挂掉
-            log(f"  ! 第 {i // cfg.llm_batch + 1} 批失败：{exc}")
+            message = str(exc)
+            log(f"  ! 第 {i // cfg.llm_batch + 1} 批失败：{message}")
+            # key 错了、没钱了、被限流 —— 后面每一批都会一样失败，
+            # 而且不该消耗重试次数（否则充值之前这几篇就被永久跳过）
+            if any(code in message for code in ("HTTP 401", "HTTP 402", "HTTP 403", "HTTP 429")):
+                log("  · 这是密钥/余额/限流问题，本次到此为止，明天自动再试")
+                break
             store.bump_attempts([r["key"] for r in chunk])
             continue
         for idx, item in parsed.items():

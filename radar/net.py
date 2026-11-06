@@ -48,8 +48,8 @@ class Http:
             time.sleep(min(2 ** attempt, 8) * 0.6 + random.random() * 0.4)
         raise RuntimeError(f"GET 失败 {url} :: {last}")
 
-    def get_json(self, url, params=None, allow_404=False):
-        raw = self.get(url, params=params, allow_404=allow_404)
+    def get_json(self, url, params=None, allow_404=False, headers=None):
+        raw = self.get(url, params=params, headers=headers, allow_404=allow_404)
         if raw is None:
             return None
         return json.loads(raw.decode("utf-8", "replace"))

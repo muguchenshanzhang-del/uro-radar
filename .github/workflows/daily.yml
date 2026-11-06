@@ -5,6 +5,12 @@ on:
     # UTC 23:30 = 北京时间 07:30。GitHub 的 cron 会延迟几分钟到半小时，正常。
     - cron: "30 23 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "doctor 只做接口自检（不抓文献、不出报）；build 是正常出报"
+        type: choice
+        options: [build, doctor]
+        default: build
 
 permissions:
   contents: write
@@ -29,7 +35,13 @@ jobs:
       - name: 抓取 · 打分 · 中文速读 · 生成页面
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: python main.py build --days 10
+        run: |
+          MODE="${{ github.event.inputs.mode || 'build' }}"
+          if [ "$MODE" = "doctor" ]; then
+            python main.py doctor
+          else
+            python main.py build --days 10
+          fi
 
       # 状态文件要提交回去：去重记录和已生成的中文速读都在里面，
       # 不提交的话明天会把同样的文献再推一遍、再花一次钱。

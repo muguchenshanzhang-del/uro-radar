@@ -48,6 +48,15 @@ class Config:
         self.llm_key_env = str(llm.get("api_key_env", "LLM_API_KEY"))
         self.llm_batch = int(llm.get("batch", 6))
         self.llm_max_per_run = int(llm.get("max_per_run", 30))
+        # 有些网关（Cloudflare 前面那种）会把默认的 python-urllib UA 直接挡掉，
+        # 返回 1010/403。这里给模型接口单独一个正常的浏览器 UA。
+        self.llm_user_agent = str(
+            llm.get(
+                "user_agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+            )
+        )
 
         r = raw.get("render", {})
         self.title = str(r.get("title", "泌尿外科文献雷达"))

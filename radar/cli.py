@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import timedelta
@@ -155,6 +156,49 @@ def cmd_check(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    """自检模型接口：网关通不通、模型在不在、有没有余额。配完 key 先跑这个。"""
+    cfg = Config(args.config)
+    clock.configure(cfg.timezone)
+    key = os.environ.get(cfg.llm_key_env, "").strip()
+    if not key:
+        _log(f"✗ 没有设置环境变量 {cfg.llm_key_env}")
+        return 2
+
+    _log(f"· 网关 {cfg.llm_base_url}")
+    _log(f"· 模型 {cfg.llm_model}")
+    http = Http(cfg.llm_user_agent, timeout=30)
+    headers = {"Authorization": f"Bearer {key}", "User-Agent": cfg.llm_user_agent}
+
+    try:
+        data = http.get_json(cfg.llm_base_url + "/models", headers=headers)
+    except Exception as exc:
+        _log(f"✗ 连不上网关：{exc}")
+        return 1
+
+    ids = [m.get("id") for m in (data or {}).get("data", []) if isinstance(m, dict)]
+    _log(f"✓ 网关可达，返回 {len(ids)} 个模型")
+    if cfg.llm_model not in ids:
+        near = [i for i in ids if "deepseek" in (i or "").lower()]
+        _log(f"✗ 列表里没有 {cfg.llm_model}，相近的有：{near}")
+        return 1
+    _log(f"✓ {cfg.llm_model} 在列表里")
+
+    body = {
+        "model": cfg.llm_model,
+        "messages": [{"role": "user", "content": "回复两个字：正常"}],
+        "max_tokens": 8,
+    }
+    try:
+        resp = http.post_json(cfg.llm_base_url + "/chat/completions", body, headers)
+        text = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+        _log(f"✓ 生成正常：{str(text).strip()[:40]}")
+        return 0
+    except Exception as exc:
+        _log(f"✗ 生成失败：{exc}")
+        return 1
+
+
 def cmd_apply(args) -> int:
     """把外部生成的中文速读写回库里（没有 API key 时，用任意模型/人手动生成都能走这条路）。"""
     from pathlib import Path
@@ -198,6 +242,7 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--no-llm", action="store_true", help="不生成中文速读")
 
     sub.add_parser("check", help="核对期刊池：两边各能抓到多少条")
+    sub.add_parser("doctor", help="自检模型接口：网关、模型、余额")
 
     apply_cmd = sub.add_parser("apply", help="把外部生成的 digest.json 写回库")
     apply_cmd.add_argument("file", help="JSON 文件路径")
@@ -212,6 +257,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_build(args)
     if args.command == "check":
         return cmd_check(args)
+    if args.command == "doctor":
+        return cmd_doctor(args)
     parser.print_help()
     return 2
 
