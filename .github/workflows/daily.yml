@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "doctor 只做接口自检（不抓文献、不出报）；build 是正常出报"
+        description: "build 正常出报并推送；test-push 只发一条测试消息；doctor 只自检模型接口"
         type: choice
-        options: [build, doctor]
+        options: [build, test-push, doctor]
         default: build
 
 permissions:
@@ -32,21 +32,33 @@ jobs:
           python-version: "3.12"
 
       # 这个项目零依赖，不需要 pip install
-      - name: 抓取 · 打分 · 中文速读 · 生成页面
+      - name: 运行
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          # 推送通道：配了哪个用哪个，都不配就跳过推送
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+          BARK_URL: ${{ secrets.BARK_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
         run: |
           MODE="${{ github.event.inputs.mode || 'build' }}"
-          if [ "$MODE" = "doctor" ]; then
-            python main.py doctor
-          else
-            python main.py build --days 10
-          fi
+          echo "mode=$MODE"
+          case "$MODE" in
+            doctor)    python main.py doctor ;;
+            test-push) python main.py notify --test ;;
+            *)         python main.py build --days 10 ;;
+          esac
 
-      # 状态文件要提交回去：去重记录和已生成的中文速读都在里面，
+      # 状态文件要提交回去：去重记录、已生成的中文速读、已推送过的记号都在里面。
       # 不提交的话明天会把同样的文献再推一遍、再花一次钱。
       # （摘要原文在本地 radar.db 里，不进仓库）
       - name: 提交状态
+        if: ${{ (github.event.inputs.mode || 'build') != 'doctor' && (github.event.inputs.mode || 'build') != 'test-push' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -59,11 +71,13 @@ jobs:
           fi
 
       - uses: actions/upload-pages-artifact@v3
+        if: ${{ (github.event.inputs.mode || 'build') == 'build' }}
         with:
           path: public
 
   deploy:
     needs: build
+    if: ${{ (github.event.inputs.mode || 'build') == 'build' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

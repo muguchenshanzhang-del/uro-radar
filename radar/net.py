@@ -59,6 +59,16 @@ class Http:
         hdr = {"Content-Type": "application/json"}
         if headers:
             hdr.update(headers)
+        return self._send(url, data, hdr, timeout)
+
+    def post_form(self, url, fields, headers=None, timeout=60):
+        data = urllib.parse.urlencode(fields).encode("utf-8")
+        hdr = {"Content-Type": "application/x-www-form-urlencoded"}
+        if headers:
+            hdr.update(headers)
+        return self._send(url, data, hdr, timeout)
+
+    def _send(self, url, data, hdr, timeout):
         last = None
         for attempt in range(self.retries):
             try:

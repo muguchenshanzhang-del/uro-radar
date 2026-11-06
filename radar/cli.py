@@ -9,7 +9,7 @@ import sys
 import time
 from datetime import timedelta
 
-from . import clock
+from . import clock, notify
 from .config import Config
 from .digest import llm_headers, run as run_digest
 from .net import Http
@@ -111,10 +111,14 @@ def cmd_build(args) -> int:
     else:
         _log("  · 没有需要生成的")
 
-    _log("\n[5/5] 生成页面")
+    _log("\n[5/6] 生成页面")
     items = [row_to_dict(r) for r in store.recent(cfg.days, cfg.limit)]
     stats = store.stats()
     path = write_page(items, cfg, stats=stats)
+
+    _log("\n[6/6] 推送")
+    _push(store, cfg, http, _log)
+
     pruned = store.prune(cfg.prune_days)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(store.export_state(), ensure_ascii=False), encoding="utf-8")
@@ -201,6 +205,50 @@ def cmd_doctor(args) -> int:
         return 1
 
 
+def _push(store: Store, cfg: Config, http: Http, log, dry_run: bool = False) -> int:
+    if not cfg.notify_enabled:
+        log("  · 推送已关闭（[notify] enabled = false）")
+        return 0
+    rows = [row_to_dict(r) for r in store.unpushed(cfg.notify_days, cfg.notify_top_n)]
+    if not rows:
+        log("  · 最近没有未推的新文献，跳过")
+        return 0
+
+    if dry_run:
+        title, body = notify.render(rows, cfg)
+        log(f"  · 标题：{title}")
+        for line in body.splitlines():
+            log("    " + line)
+        return 0
+
+    if not notify.send(rows, cfg, http, log=log):
+        log("  · 没有推送成功，不标记已读，下次再试")
+        return 0
+    store.mark_pushed([r["key"] for r in rows])
+    log(f"  · 已标记 {len(rows)} 篇为已推送")
+    return len(rows)
+
+
+def cmd_notify(args) -> int:
+    cfg = Config(args.config)
+    clock.configure(cfg.timezone)
+    store = Store(cfg.db)
+    http = Http(cfg.user_agent)
+    try:
+        if args.test:
+            notify.send_test(cfg, http, log=_log)
+        else:
+            _push(store, cfg, http, _log, dry_run=args.dry_run)
+    finally:
+        state_path = cfg.root / "data" / "state.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(
+            json.dumps(store.export_state(), ensure_ascii=False), encoding="utf-8"
+        )
+        store.close()
+    return 0
+
+
 def cmd_apply(args) -> int:
     """把外部生成的中文速读写回库里（没有 API key 时，用任意模型/人手动生成都能走这条路）。"""
     from pathlib import Path
@@ -246,6 +294,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("check", help="核对期刊池：两边各能抓到多少条")
     sub.add_parser("doctor", help="自检模型接口：网关、模型、余额")
 
+    notify_cmd = sub.add_parser("notify", help="只推送，不抓取（排查推送用）")
+    notify_cmd.add_argument("--dry-run", action="store_true", help="只打印消息，不发出去")
+    notify_cmd.add_argument("--test", action="store_true", help="发一条固定文本，只测通道通不通")
+
     apply_cmd = sub.add_parser("apply", help="把外部生成的 digest.json 写回库")
     apply_cmd.add_argument("file", help="JSON 文件路径")
 
@@ -261,6 +313,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_check(args)
     if args.command == "doctor":
         return cmd_doctor(args)
+    if args.command == "notify":
+        return cmd_notify(args)
     parser.print_help()
     return 2
 

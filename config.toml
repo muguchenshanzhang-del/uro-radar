@@ -59,6 +59,19 @@ subtitle = "Crossref × PubMed · 每日高分文献"
 # 顶部「本周必读」展示几篇
 top_n = 5
 
+[notify]
+# 推送当天的 Top N。通道靠环境变量决定，配了哪个用哪个：
+#   WECOM_WEBHOOK  企业微信群机器人（推荐，免费不限量）
+#   SERVERCHAN_KEY Server酱，直接进个人微信
+#   BARK_URL       iOS 的 Bark
+#   SMTP_HOST / SMTP_USER / SMTP_PASS / MAIL_TO / MAIL_FROM  邮件
+enabled = true
+top_n = 8
+# 只推最近几天内发表的，避免补推一堆旧文
+days = 3
+# 消息末尾「查看全部」的链接
+page_url = "https://muguchenshanzhang-del.github.io/uro-radar/"
+
 # =====================================================================
 # 兴趣词：命中标题/摘要就加分。按你现在的方向调。
 # =====================================================================

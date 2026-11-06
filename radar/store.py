@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS papers (
     zh_practice    TEXT,
     digest_model   TEXT,
     digest_attempts INTEGER DEFAULT 0,
+    pushed_at      TEXT,
     first_seen     TEXT,
     last_seen      TEXT
 );
@@ -83,6 +84,10 @@ class Store:
         self.conn = sqlite3.connect(path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        # 老库没有 pushed_at 这一列（推送是后来加的），就地补上
+        columns = {row[1] for row in self.conn.execute("PRAGMA table_info(papers)")}
+        if "pushed_at" not in columns:
+            self.conn.execute("ALTER TABLE papers ADD COLUMN pushed_at TEXT")
         self.conn.commit()
 
     def close(self):
@@ -149,6 +154,29 @@ class Store:
         )
         self.conn.commit()
 
+    def unpushed(self, days: int, limit: int) -> list[sqlite3.Row]:
+        """最近 N 天里还没推过的高分文章。"""
+        cutoff = (_today() - timedelta(days=days)).isoformat()
+        cur = self.conn.execute(
+            """
+            SELECT * FROM papers
+            WHERE title != '' AND pushed_at IS NULL AND published >= ?
+            ORDER BY score DESC, published DESC
+            LIMIT ?
+            """,
+            (cutoff, limit),
+        )
+        return list(cur.fetchall())
+
+    def mark_pushed(self, keys: list[str], when: str | None = None) -> None:
+        if not keys:
+            return
+        when = when or _today().isoformat()
+        self.conn.executemany(
+            "UPDATE papers SET pushed_at = ? WHERE key = ?", [(when, k) for k in keys]
+        )
+        self.conn.commit()
+
     def prune(self, days: int) -> int:
         cutoff = (_today() - timedelta(days=days)).isoformat()
         cur = self.conn.execute(
@@ -168,6 +196,12 @@ class Store:
             row["key"]: row["first_seen"]
             for row in self.conn.execute("SELECT key, first_seen FROM papers")
         }
+        pushed = {
+            row["key"]: row["pushed_at"]
+            for row in self.conn.execute(
+                "SELECT key, pushed_at FROM papers WHERE pushed_at IS NOT NULL"
+            )
+        }
         digests = {
             row["key"]: {
                 "zh_title": row["zh_title"],
@@ -181,7 +215,7 @@ class Store:
                 "FROM papers WHERE zh_title IS NOT NULL"
             )
         }
-        return {"version": 1, "seen": seen, "digests": digests}
+        return {"version": 1, "seen": seen, "digests": digests, "pushed": pushed}
 
     def import_state(self, data: dict) -> None:
         today = _today().isoformat()
@@ -210,6 +244,10 @@ class Store:
                 for key, item in (data.get("digests") or {}).items()
                 if item.get("zh_title")
             ],
+        )
+        self.conn.executemany(
+            "UPDATE papers SET pushed_at = ? WHERE key = ?",
+            [(ts, key) for key, ts in (data.get("pushed") or {}).items() if key],
         )
         self.conn.commit()
 

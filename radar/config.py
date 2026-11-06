@@ -68,6 +68,13 @@ class Config:
         self.subtitle = str(r.get("subtitle", ""))
         self.top_n = int(r.get("top_n", 5))
 
+        n = raw.get("notify", {})
+        self.notify_enabled = bool(n.get("enabled", True))
+        self.notify_top_n = int(n.get("top_n", 8))
+        self.notify_days = int(n.get("days", 3))
+        self.notify_page_url = str(n.get("page_url", "")).strip()
+        self.notify_total_hint = str(n.get("total_hint", str(self.limit)))
+
         self.journals = [
             Journal(
                 name=str(j["name"]),

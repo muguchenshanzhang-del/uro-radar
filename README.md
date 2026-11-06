@@ -100,7 +100,8 @@ radar/
   sources.py           Crossref + PubMed 抓取，按 DOI 合并
   score.py             打分逻辑
   digest.py            中文速读（OpenAI 兼容接口）
-  store.py             SQLite：去重 + 速读缓存
+  notify.py            推送：企业微信 / Server酱 / Bark / 邮件
+  store.py             SQLite：去重 + 速读缓存 + 推送标记
   render.py            生成静态页面
   cli.py               命令行
 data/state.json       见过哪些 DOI + 已生成的中文速读（会被 Actions 提交回仓库）
@@ -109,8 +110,37 @@ public/index.html     生成物
 .github/workflows/daily.yml
 ```
 
+## 推送到手机
+
+四个通道写好了，**配一个就能用**，配多个也不冲突。都不配就只出网页。
+
+### 企业微信群机器人（推荐）
+
+免费、不限量、卡片式，手机上装个企业微信就行（个人也能注册企业）。
+
+1. 企业微信 → 建一个只有自己的群（或随便找个群）
+2. 群右上角 → 群机器人 → 添加 → 复制 Webhook 地址
+3. 仓库 **Settings → Secrets and variables → Actions** → 新建 `WECOM_WEBHOOK`，粘贴地址
+4. Actions → 每日文献雷达 → Run workflow → 模式选 **test-push**，十几秒后群里就会收到一条测试消息
+5. 再跑一次 **build**，当天最高分的 8 篇会推过来
+
+以后每天 07:30 自动推当天最高分的 8 篇，带中文结论和原文链接。
+
+### 其他三个通道
+
+| 通道 | 怎么拿 | Secret |
+|---|---|---|
+| Server酱（进个人微信） | [sct.ftqq.com](https://sct.ftqq.com) 微信扫码，拿 SendKey | `SERVERCHAN_KEY` |
+| Bark（iPhone 锁屏） | App 里复制设备地址，形如 `https://api.day.app/xxxxx` | `BARK_URL` |
+| 邮件 | 任意 SMTP，QQ/163 要用「授权码」不是登录密码 | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_TO` |
+
+推送逻辑在 [`radar/notify.py`](radar/notify.py)：写进 `state.json` 的 `pushed` 字段，同一篇不会推第二遍。想先看效果不发出去：
+
+```bash
+python main.py notify --dry-run
+```
+
 ## 还能加什么
 
-- **推送到微信 / 邮件**：加一个 `radar/notify.py`，把当天 Top 10 拼成 markdown 发企业微信群机器人，二十行就够
 - **指南更新单独提醒**：`pubtype` 里有 `Practice Guideline` 时另发一条，别混在日常流里
 - **按亚专科拆页**：`group` 已经有了，`render.py` 里循环生成几个子页面即可
